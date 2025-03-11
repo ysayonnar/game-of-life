@@ -3,4 +3,4 @@
 ![preview](img.png)
 
 ## Usage
-`go run main.go -l <length> -w <width> -i <interval(ms)>`
+`go run main.go -l <length> -w <width> -i <interval(ms)> -rule b3/s23`

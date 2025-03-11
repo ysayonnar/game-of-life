@@ -2,36 +2,83 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"math/rand/v2"
 	"os"
+	"strconv"
+	"strings"
 	"time"
+	"unicode"
 )
+
+//INTERESTING RULES
+//b3678/s34678 - day and night
+//b3/s - seeds
 
 var (
 	LENGTH        = flag.Int("l", 50, "length")
 	WIDTH         = flag.Int("w", 50, "width")
 	TIME_INTERVAL = flag.Int("i", 100, "interval between render")
+	RULE_FORMAT   = flag.String("rule", "b3/s23", "rule of game in format b3/s23")
 
 	White = "\033[37m"
 	Reset = "\033[0m"
 	Black = "\033[30m"
 )
 
+type Rule struct {
+	Born    []int
+	Survive []int
+}
+
 type Field struct {
 	Cells  [][]bool
 	Length int
 	Width  int
+	Rule   Rule
 }
 
-func NewField(l, w int) *Field {
+func ParseRule(codedRule string) (*Rule, error) {
+	var InvalidFormatError = errors.New("incorrect rule, must be b<nums>/s<nums>")
+	rule := &Rule{Born: []int{}, Survive: []int{}}
+
+	s := strings.Split(codedRule, "/")
+	if len(s) != 2 || s[0][0] != 'b' || s[1][0] != 's' {
+		return nil, InvalidFormatError
+	}
+
+	bornStr, survivestr := s[0][1:], s[1][1:]
+
+	for _, s := range bornStr {
+		if !unicode.IsDigit(s) {
+			return nil, InvalidFormatError
+		} else {
+			n, _ := strconv.Atoi(string(s))
+			rule.Born = append(rule.Born, n)
+		}
+	}
+
+	for _, s := range survivestr {
+		if !unicode.IsDigit(s) {
+			return nil, InvalidFormatError
+		} else {
+			n, _ := strconv.Atoi(string(s))
+			rule.Survive = append(rule.Survive, n)
+		}
+	}
+
+	return rule, nil
+}
+
+func NewField(l, w int, rule Rule) *Field {
 	cells := make([][]bool, w)
 	for i, _ := range cells {
 		cells[i] = make([]bool, l)
 	}
 
-	return &Field{Length: l, Width: w, Cells: cells}
+	return &Field{Length: l, Width: w, Cells: cells, Rule: rule}
 }
 
 func (f *Field) FillRandom() {
@@ -54,9 +101,9 @@ func (f *Field) PrintField(done chan bool) {
 		for j := 0; j < f.Length; j++ {
 			cell := f.Cells[i][j]
 			if cell {
-				fmt.Fprintf(&b, "%s██%s", Black, Reset)
-			} else {
 				fmt.Fprintf(&b, "%s██%s", White, Reset)
+			} else {
+				fmt.Fprintf(&b, "  ")
 			}
 		}
 		fmt.Fprint(&b, "\n")
@@ -68,27 +115,36 @@ func (f *Field) PrintField(done chan bool) {
 }
 
 func (f *Field) RenderField() *Field {
-	newField := NewField(f.Length, f.Width)
+	newField := NewField(f.Length, f.Width, f.Rule)
 	directions := [][]int{
 		{-1, 0}, {1, 0}, {0, -1}, {0, 1},
 		{-1, 1}, {1, -1}, {1, 1}, {-1, -1},
 	}
 
-	for i := 1; i < f.Width-1; i++ {
-		for j := 1; j < f.Length-1; j++ {
+	for i := 0; i < f.Width; i++ {
+		for j := 0; j < f.Length; j++ {
 			ctr := 0
 			for _, dir := range directions {
-				if f.Cells[i+dir[0]][j+dir[1]] {
+				ni := (i + dir[0] + f.Width) % f.Width
+				nj := (j + dir[1] + f.Length) % f.Length
+
+				if f.Cells[ni][nj] {
 					ctr++
 				}
 			}
 
-			if ctr == 3 {
-				newField.Cells[i][j] = true
-			} else if ctr == 2 {
-				newField.Cells[i][j] = f.Cells[i][j]
-			} else {
-				newField.Cells[i][j] = false
+			newField.Cells[i][j] = false
+			for _, surviveNum := range f.Rule.Survive {
+				if ctr == surviveNum {
+					newField.Cells[i][j] = f.Cells[i][j]
+					break
+				}
+			}
+
+			for _, bornNum := range f.Rule.Born {
+				if ctr == bornNum {
+					newField.Cells[i][j] = true
+				}
 			}
 		}
 	}
@@ -105,12 +161,25 @@ func main() {
 	if *TIME_INTERVAL < 0 {
 		fmt.Println("Incorrect interval")
 		return
+	} else if *LENGTH < 0 || *LENGTH > 1000 {
+		fmt.Println("length must be from 0 to 1000")
+		return
+	} else if *WIDTH < 0 || *WIDTH > 1000 {
+		fmt.Println("width must be from 0 to 1000")
+		return
 	}
 
-	done := make(chan bool)
-	field := NewField(*LENGTH, *WIDTH)
+	rule, err := ParseRule(*RULE_FORMAT)
+	if err != nil {
+		fmt.Printf("error: %s\n", err.Error())
+		return
+	}
+
+	field := NewField(*LENGTH, *WIDTH, *rule)
 	field.FillRandom()
 	ClearScreen()
+
+	done := make(chan bool)
 	go field.PrintField(done)
 
 	for {
