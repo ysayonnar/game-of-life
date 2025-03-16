@@ -13,7 +13,7 @@ import (
 	"unicode"
 )
 
-//INTERESTING RULES
+//interesting game-of-life rules:
 //b3678/s34678 - day and night
 //b3/s - seeds
 
@@ -74,7 +74,7 @@ func ParseRule(codedRule string) (*Rule, error) {
 
 func NewField(l, w int, rule Rule) *Field {
 	cells := make([][]bool, w)
-	for i, _ := range cells {
+	for i := range cells {
 		cells[i] = make([]bool, l)
 	}
 
@@ -82,8 +82,8 @@ func NewField(l, w int, rule Rule) *Field {
 }
 
 func (f *Field) FillRandom() {
-	for i := 0; i < f.Width; i++ {
-		for j := 0; j < f.Length; j++ {
+	for i := range f.Width {
+		for j := range f.Length {
 			cell := rand.IntN(2)
 			if cell == 0 {
 				f.Cells[i][j] = false
@@ -97,8 +97,8 @@ func (f *Field) FillRandom() {
 func (f *Field) PrintField(done chan bool) {
 	var b bytes.Buffer
 
-	for i := 0; i < f.Width; i++ {
-		for j := 0; j < f.Length; j++ {
+	for i := range f.Width {
+		for j := range f.Length {
 			cell := f.Cells[i][j]
 			if cell {
 				fmt.Fprintf(&b, "%s██%s", White, Reset)
@@ -121,8 +121,8 @@ func (f *Field) RenderField() *Field {
 		{-1, 1}, {1, -1}, {1, 1}, {-1, -1},
 	}
 
-	for i := 0; i < f.Width; i++ {
-		for j := 0; j < f.Length; j++ {
+	for i := range f.Width {
+		for j := range f.Length {
 			ctr := 0
 			for _, dir := range directions {
 				ni := (i + dir[0] + f.Width) % f.Width
